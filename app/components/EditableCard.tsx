@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, X } from "lucide-react";
+import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card } from "~/components/ui/card";
 
@@ -10,10 +10,14 @@ interface EditableCardProps {
   onTextChange: (text: string) => void;
   onDelete: () => void;
   onVote: (increment: boolean) => void;
-  onMove: (direction: "left" | "right") => void;
   seconds: number;
   isTimerRunning: boolean;
   onTimerUpdate: (seconds: number, isRunning: boolean) => void;
+  column: string;
+  onDragStart?: (cardId: string, column: string) => void;
+  cardNumber: number;
+  userVotes: Record<string, number>;
+  currentUsername: string;
 }
 
 export function EditableCard({
@@ -23,14 +27,19 @@ export function EditableCard({
   onTextChange,
   onDelete,
   onVote,
-  onMove,
   backgroundColor,
   seconds: initialSeconds,
   isTimerRunning: initialIsRunning,
   onTimerUpdate,
+  column,
+  onDragStart,
+  cardNumber,
+  userVotes,
+  currentUsername,
 }: EditableCardProps) {
   const [isEditing, setIsEditing] = useState(!initialText);
   const [text, setText] = useState(initialText);
+  const [isDragging, setIsDragging] = useState(false);
 
   const [isTimerRunning, setIsTimerRunning] = useState(initialIsRunning);
   const [seconds, setSeconds] = useState(initialSeconds);
@@ -70,22 +79,53 @@ export function EditableCard({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" || e.key === "Escape") {
       setIsEditing(false);
     }
   };
 
+  const handleDragStart = (e: React.DragEvent) => {
+    setIsDragging(true);
+    e.dataTransfer.setData('text/plain', JSON.stringify({ cardId: id, sourceColumn: column }));
+    e.dataTransfer.effectAllowed = 'move';
+    // Hide the default drag image
+    const img = new Image();
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
+    e.dataTransfer.setDragImage(img, 0, 0);
+    
+    if (onDragStart) {
+      onDragStart(id, column);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+  
+  // Calculate user's vote count and shadow effect
+  const currentUserVoteCount = userVotes[currentUsername] || 0;
+  const voteShadow = currentUserVoteCount > 0 
+    ? 'shadow-[0_0_10px_2px_rgba(0,255,255,0.6)]' 
+    : '';
+
   return (
     <Card
-      className="p-4 mb-4 hover:bg-card/80 transition-colors group relative flex gap-3"
+      className={`p-4 mb-4 hover:bg-card/80 transition-all group relative flex gap-3 ${
+        isDragging ? 'transform rotate-2 opacity-70' : ''
+      } ${
+        isTimerRunning ? 'shadow-[0_0_20px_2px_rgba(34,197,94,0.8)]' : voteShadow
+      }`}
       style={{ backgroundColor }}
       key={id}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
     >
       {/* Left side - Vote buttons */}
       <div className="flex flex-col items-center justify-center gap-2">
         <button
           onClick={() => onVote(true)}
-          className="p-1 rounded-lg transition-all duration-200 bg-gradient-to-r from-[#0A2A0A] to-[#0A2A2A]
+          className="opacity-0 group-hover:opacity-100 transition-opacity duration-400 p-1 rounded-lg transition-all duration-200 bg-gradient-to-r from-[#0A2A0A] to-[#0A2A2A]
             bg-clip-padding border-2 border-[#39FF14]/30 hover:border-[#39FF14]
             shadow-[0_0_15px_rgba(57,255,20,0.2)] hover:shadow-[0_0_20px_rgba(57,255,20,0.5)]
             [&>svg]:text-[#39FF14] hover:[&>svg]:text-[#7FFF6E]"
@@ -95,7 +135,7 @@ export function EditableCard({
         <p className="text-sm font-medium">{votes}</p>
         <button
           onClick={() => onVote(false)}
-          className="p-1 rounded-lg transition-all duration-200 bg-gradient-to-r from-[#2A1000] to-[#2A0000]
+          className="opacity-0 group-hover:opacity-100 transition-opacity duration-400 p-1 rounded-lg transition-all duration-200 bg-gradient-to-r from-[#2A1000] to-[#2A0000]
             bg-clip-padding border-2 border-[#FF6B00]/30 hover:border-[#FF6B00]
             shadow-[0_0_15px_rgba(255,107,0,0.2)] hover:shadow-[0_0_20px_rgba(255,107,0,0.5)]
             [&>svg]:text-[#FF6B00] hover:[&>svg]:text-[#FFB366]"
@@ -144,31 +184,18 @@ export function EditableCard({
       <div className="flex flex-col gap-2">
         <button
           onClick={onDelete}
-          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all duration-200
+          className="opacity-0 group-hover:opacity-100 transition-opacity duration-400 p-1 rounded-lg transition-all duration-200
             bg-gradient-to-r from-[#2A0A1A] to-[#2A0A2A] bg-clip-padding border-2 border-[#FF1493]/30
             hover:border-[#FF1493] shadow-[0_0_15px_rgba(255,20,147,0.2)]
             hover:shadow-[0_0_20px_rgba(255,20,147,0.5)] [&>svg]:text-[#FF1493] hover:[&>svg]:text-[#FF69B4]"
         >
           <X className="h-4 w-4" />
         </button>
-        <button
-          onClick={() => onMove("right")}
-          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all duration-200
-            bg-gradient-to-r from-[#0A2A2A] to-[#0A1A2A] bg-clip-padding border-2 border-[#00FFFF]/30
-            hover:border-[#00FFFF] shadow-[0_0_15px_rgba(0,255,255,0.2)]
-            hover:shadow-[0_0_20px_rgba(0,255,255,0.5)] [&>svg]:text-[#00FFFF] hover:[&>svg]:text-[#80FFFF]"
-        >
-          <ArrowRight className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => onMove("left")}
-          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all duration-200
-            bg-gradient-to-r from-[#2A0A2A] to-[#1A0A2A] bg-clip-padding border-2 border-[#FF00FF]/30
-            hover:border-[#FF00FF] shadow-[0_0_15px_rgba(255,0,255,0.2)]
-            hover:shadow-[0_0_20px_rgba(255,0,255,0.5)] [&>svg]:text-[#FF00FF] hover:[&>svg]:text-[#FF80FF]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
+      </div>
+      
+      {/* Card number in bottom right corner */}
+      <div className="absolute bottom-2 right-2 text-sm font-mono text-muted-foreground opacity-60">
+        {cardNumber}
       </div>
     </Card>
   );
